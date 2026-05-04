@@ -1,0 +1,886 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>서울시 따릉이 기상·탄소 분석 대시보드</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700;900&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+  :root {
+    --bg: #0a0f1e;
+    --surface: #111827;
+    --surface2: #1a2235;
+    --border: rgba(99,202,183,0.15);
+    --accent: #63cab7;
+    --accent2: #f59e42;
+    --accent3: #e05a7a;
+    --accent4: #7c9ef5;
+    --text: #e8f0ef;
+    --muted: #7a9090;
+    --green: #4ade80;
+    --card-radius: 16px;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Noto Sans KR', sans-serif;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* ── Background mesh ── */
+  body::before {
+    content: '';
+    position: fixed; inset: 0;
+    background:
+      radial-gradient(ellipse 60% 40% at 10% 20%, rgba(99,202,183,0.07) 0%, transparent 70%),
+      radial-gradient(ellipse 50% 50% at 85% 75%, rgba(124,158,245,0.06) 0%, transparent 70%),
+      radial-gradient(ellipse 40% 30% at 50% 50%, rgba(245,158,66,0.04) 0%, transparent 70%);
+    pointer-events: none; z-index: 0;
+  }
+
+  .wrap { position: relative; z-index: 1; max-width: 1280px; margin: 0 auto; padding: 0 28px 60px; }
+
+  /* ── Header ── */
+  header {
+    padding: 48px 0 36px;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 40px;
+    display: flex; align-items: flex-end; justify-content: space-between; gap: 20px;
+    flex-wrap: wrap;
+  }
+  .header-left {}
+  .badge {
+    display: inline-flex; align-items: center; gap: 7px;
+    background: rgba(99,202,183,0.1); border: 1px solid var(--border);
+    border-radius: 100px; padding: 5px 14px;
+    font-size: 11px; font-family: 'Space Mono', monospace;
+    color: var(--accent); letter-spacing: 0.05em;
+    margin-bottom: 14px;
+  }
+  .badge::before { content: '●'; font-size: 8px; animation: blink 2s infinite; }
+  @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.3} }
+
+  h1 {
+    font-size: clamp(22px, 3.5vw, 36px);
+    font-weight: 900;
+    line-height: 1.25;
+    letter-spacing: -0.03em;
+  }
+  h1 span { color: var(--accent); }
+  .subtitle {
+    margin-top: 10px;
+    font-size: 13px; color: var(--muted); line-height: 1.6;
+  }
+  .header-meta {
+    font-family: 'Space Mono', monospace;
+    font-size: 11px; color: var(--muted);
+    text-align: right; line-height: 1.8;
+  }
+  .header-meta strong { color: var(--accent); font-size: 13px; }
+
+  /* ── Section titles ── */
+  .section { margin-bottom: 48px; }
+  .sec-header {
+    display: flex; align-items: center; gap: 14px;
+    margin-bottom: 22px;
+  }
+  .sec-num {
+    font-family: 'Space Mono', monospace;
+    font-size: 11px; color: var(--accent);
+    background: rgba(99,202,183,0.08);
+    border: 1px solid var(--border);
+    border-radius: 6px; padding: 3px 9px;
+  }
+  .sec-title {
+    font-size: 17px; font-weight: 700; letter-spacing: -0.01em;
+  }
+  .sec-line {
+    flex: 1; height: 1px;
+    background: linear-gradient(90deg, var(--border) 0%, transparent 100%);
+  }
+
+  /* ── Cards ── */
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--card-radius);
+    padding: 26px 28px;
+    transition: border-color .25s, transform .25s;
+    animation: fadeUp .5s ease both;
+  }
+  .card:hover { border-color: rgba(99,202,183,0.35); transform: translateY(-2px); }
+  @keyframes fadeUp { from{opacity:0;transform:translateY(18px)} to{opacity:1;transform:translateY(0)} }
+
+  /* ── Topic cards ── */
+  .topic-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 18px; }
+  .topic-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--card-radius);
+    padding: 24px 26px 22px;
+    position: relative; overflow: hidden;
+    animation: fadeUp .5s ease both;
+    transition: transform .25s, border-color .25s;
+  }
+  .topic-card:hover { transform: translateY(-3px); border-color: rgba(99,202,183,0.4); }
+  .topic-card::before {
+    content: '';
+    position: absolute; top: 0; left: 0; right: 0; height: 3px;
+  }
+  .topic-card:nth-child(1)::before { background: linear-gradient(90deg, var(--accent), #38a89d); }
+  .topic-card:nth-child(2)::before { background: linear-gradient(90deg, var(--accent2), #d97706); }
+  .topic-card:nth-child(3)::before { background: linear-gradient(90deg, var(--accent4), #4f6fdb); }
+  .topic-card:nth-child(1) { animation-delay: .05s; }
+  .topic-card:nth-child(2) { animation-delay: .1s; }
+  .topic-card:nth-child(3) { animation-delay: .15s; }
+
+  .topic-idx {
+    font-family: 'Space Mono', monospace;
+    font-size: 10px; letter-spacing: 0.1em;
+    margin-bottom: 10px;
+  }
+  .topic-card:nth-child(1) .topic-idx { color: var(--accent); }
+  .topic-card:nth-child(2) .topic-idx { color: var(--accent2); }
+  .topic-card:nth-child(3) .topic-idx { color: var(--accent4); }
+
+  .topic-title {
+    font-size: 15px; font-weight: 700;
+    letter-spacing: -0.01em; line-height: 1.4;
+    margin-bottom: 10px;
+  }
+  .topic-tags {
+    display: flex; flex-wrap: wrap; gap: 6px; margin-top: 14px;
+  }
+  .tag {
+    font-size: 10px;
+    background: rgba(255,255,255,0.05);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 100px; padding: 3px 10px;
+    color: var(--muted);
+  }
+
+  /* ── SQL ── */
+  .sql-grid { display: grid; gap: 20px; }
+  .sql-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--card-radius);
+    overflow: hidden;
+    animation: fadeUp .5s ease both;
+  }
+  .sql-card:nth-child(1) { animation-delay: .05s; }
+  .sql-card:nth-child(2) { animation-delay: .1s; }
+  .sql-card:nth-child(3) { animation-delay: .15s; }
+
+  .sql-header {
+    display: flex; align-items: center; gap: 12px;
+    padding: 14px 22px;
+    background: var(--surface2);
+    border-bottom: 1px solid var(--border);
+  }
+  .sql-dots { display: flex; gap: 6px; }
+  .sql-dots span {
+    width: 10px; height: 10px; border-radius: 50%;
+  }
+  .sql-dots span:nth-child(1) { background: #ff5f57; }
+  .sql-dots span:nth-child(2) { background: #ffbd2e; }
+  .sql-dots span:nth-child(3) { background: #28c840; }
+  .sql-label {
+    font-family: 'Space Mono', monospace;
+    font-size: 11px; color: var(--muted);
+    flex: 1;
+  }
+  .sql-label strong { color: var(--accent); }
+
+  pre {
+    padding: 22px 26px;
+    overflow-x: auto;
+    font-family: 'Space Mono', monospace;
+    font-size: 12px;
+    line-height: 1.75;
+    color: #c9d8d8;
+    tab-size: 4;
+  }
+
+  /* Syntax highlight */
+  .kw  { color: #7c9ef5; }
+  .fn  { color: #f59e42; }
+  .str { color: #63cab7; }
+  .cm  { color: #5a7070; font-style: italic; }
+  .num { color: #e05a7a; }
+  .col { color: #e8f0ef; }
+
+  /* ── Insight cards ── */
+  .insight-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 18px; }
+  .insight-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--card-radius);
+    padding: 26px 26px 24px;
+    position: relative; overflow: hidden;
+    animation: fadeUp .5s ease both;
+    transition: transform .25s, border-color .25s;
+  }
+  .insight-card:hover { transform: translateY(-3px); border-color: rgba(99,202,183,0.38); }
+  .insight-card:nth-child(1) { animation-delay: .05s; }
+  .insight-card:nth-child(2) { animation-delay: .1s; }
+  .insight-card:nth-child(3) { animation-delay: .15s; }
+
+  .insight-icon {
+    width: 44px; height: 44px;
+    border-radius: 12px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 20px;
+    margin-bottom: 16px;
+  }
+  .insight-card:nth-child(1) .insight-icon { background: rgba(99,202,183,0.12); }
+  .insight-card:nth-child(2) .insight-icon { background: rgba(245,158,66,0.12); }
+  .insight-card:nth-child(3) .insight-icon { background: rgba(124,158,245,0.12); }
+
+  .insight-num {
+    font-family: 'Space Mono', monospace;
+    font-size: 10px; letter-spacing: 0.1em;
+    margin-bottom: 8px;
+  }
+  .insight-card:nth-child(1) .insight-num { color: var(--accent); }
+  .insight-card:nth-child(2) .insight-num { color: var(--accent2); }
+  .insight-card:nth-child(3) .insight-num { color: var(--accent4); }
+
+  .insight-title {
+    font-size: 13px; font-weight: 700;
+    margin-bottom: 10px;
+    line-height: 1.45;
+  }
+  .insight-body {
+    font-size: 13px; color: #9ab5b5;
+    line-height: 1.75;
+  }
+  .insight-body em {
+    font-style: normal;
+    color: var(--text);
+    font-weight: 500;
+  }
+
+  .insight-pill {
+    margin-top: 16px;
+    display: inline-flex; align-items: center; gap: 6px;
+    font-size: 11px;
+    padding: 4px 12px;
+    border-radius: 100px;
+    border: 1px solid;
+  }
+  .insight-card:nth-child(1) .insight-pill {
+    color: var(--accent); border-color: rgba(99,202,183,0.3);
+    background: rgba(99,202,183,0.07);
+  }
+  .insight-card:nth-child(2) .insight-pill {
+    color: var(--accent2); border-color: rgba(245,158,66,0.3);
+    background: rgba(245,158,66,0.07);
+  }
+  .insight-card:nth-child(3) .insight-pill {
+    color: var(--accent4); border-color: rgba(124,158,245,0.3);
+    background: rgba(124,158,245,0.07);
+  }
+
+  /* ── Eval grid ── */
+  .eval-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+    gap: 18px;
+  }
+  .eval-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--card-radius);
+    padding: 22px 24px;
+    animation: fadeUp .5s ease both;
+  }
+  .eval-card:nth-child(1) { animation-delay: .05s; }
+  .eval-card:nth-child(2) { animation-delay: .1s; }
+  .eval-card:nth-child(3) { animation-delay: .15s; }
+  .eval-card:nth-child(4) { animation-delay: .2s; }
+
+  .eval-label { font-size: 12px; color: var(--muted); margin-bottom: 12px; }
+  .eval-score-row {
+    display: flex; align-items: baseline; gap: 6px;
+    margin-bottom: 12px;
+  }
+  .eval-score { font-size: 28px; font-weight: 900; font-family: 'Space Mono', monospace; color: var(--accent); }
+  .eval-max { font-size: 13px; color: var(--muted); font-family: 'Space Mono', monospace; }
+  .eval-bar-bg {
+    width: 100%; height: 6px;
+    background: rgba(255,255,255,0.06);
+    border-radius: 100px; overflow: hidden;
+  }
+  .eval-bar-fill {
+    height: 100%; border-radius: 100px;
+    background: linear-gradient(90deg, var(--accent), #38d9c0);
+    transition: width 1s cubic-bezier(.4,0,.2,1);
+  }
+  .eval-desc { font-size: 11px; color: var(--muted); margin-top: 10px; line-height: 1.6; }
+
+  /* ── Footer ── */
+  footer {
+    border-top: 1px solid var(--border);
+    padding: 28px 0 0;
+    display: flex; justify-content: space-between; align-items: center;
+    flex-wrap: wrap; gap: 14px;
+    font-family: 'Space Mono', monospace;
+    font-size: 11px; color: var(--muted);
+  }
+  footer span { color: var(--accent); }
+
+  /* ── Charts ── */
+  .chart-section { margin-bottom: 48px; }
+  .chart-grid-2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(480px, 1fr)); gap: 20px; }
+  .chart-grid-1 { display: grid; grid-template-columns: 1fr; gap: 20px; }
+  .chart-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--card-radius);
+    padding: 24px 26px 20px;
+    animation: fadeUp .5s ease both;
+    transition: border-color .25s;
+  }
+  .chart-card:hover { border-color: rgba(99,202,183,0.32); }
+  .chart-title {
+    font-size: 14px; font-weight: 700;
+    margin-bottom: 4px; letter-spacing: -0.01em;
+  }
+  .chart-sub {
+    font-size: 11px; color: var(--muted);
+    margin-bottom: 18px; line-height: 1.5;
+  }
+  .chart-wrap { position: relative; }
+  .kpi-row {
+    display: flex; gap: 14px; flex-wrap: wrap; margin-bottom: 20px;
+  }
+  .kpi {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 10px; padding: 12px 16px; flex: 1; min-width: 120px;
+  }
+  .kpi-label { font-size: 10px; color: var(--muted); margin-bottom: 5px; font-family: 'Space Mono', monospace; }
+  .kpi-val { font-size: 20px; font-weight: 900; font-family: 'Space Mono', monospace; }
+  .kpi-val.c1 { color: var(--accent); }
+  .kpi-val.c2 { color: var(--accent2); }
+  .kpi-val.c3 { color: var(--accent3); }
+  .kpi-val.c4 { color: var(--accent4); }
+
+  .sr { opacity: 0; transform: translateY(20px); transition: opacity .6s ease, transform .6s ease; }
+  .sr.visible { opacity: 1; transform: none; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <!-- Header -->
+  <header>
+    <div class="header-left">
+      <div class="badge">서울시 공공데이터 분석</div>
+      <h1>서울시 <span>따릉이</span> 기상·탄소<br>분석 대시보드</h1>
+      <p class="subtitle">기상 리스크 × 탄소경제가치 × 자치구별 투자우선순위 도출을 위한 SQL 기반 분석 설계서</p>
+    </div>
+    <div class="header-meta">
+      <div>데이터셋</div>
+      <strong>이용정보 · 기온 · 강수량 · 대여소</strong><br>
+      <div style="margin-top:8px">분석 기간</div>
+      <strong>2025년 7월 ~ 12월 (6개월)</strong><br>
+      <div style="margin-top:4px">총 이용건수</div>
+      <strong>약 1,965만 건 · 대여소 2,799개</strong>
+    </div>
+  </header>
+
+  <!-- 분석 주제 -->
+  <div class="section sr">
+    <div class="sec-header">
+      <span class="sec-num">01</span>
+      <span class="sec-title">분석 주제</span>
+      <div class="sec-line"></div>
+    </div>
+    <div class="topic-grid">
+      <div class="topic-card">
+        <div class="topic-idx">TOPIC 01</div>
+        <div class="topic-title">기상 리스크가 탄소절감<br>경제가치에 미치는 영향</div>
+        <p style="font-size:12px;color:var(--muted);line-height:1.7">기온·강수 구간별 탄소절감량과 경제가치를 교차 분석하여 기후 리스크가 도시 탄소중립 목표에 미치는 실질적 위협을 정량화한다.</p>
+        <div class="topic-tags">
+          <span class="tag">기온구간</span>
+          <span class="tag">강수구간</span>
+          <span class="tag">탄소경제가치</span>
+          <span class="tag">기상 리스크</span>
+        </div>
+      </div>
+      <div class="topic-card">
+        <div class="topic-idx">TOPIC 02</div>
+        <div class="topic-title">우천 시 자전거 미이용으로<br>발생하는 기회비용</div>
+        <p style="font-size:12px;color:var(--muted);line-height:1.7">월 강수량에 따른 실제 이용건수와 기대 이용건수 차이를 추정 손실건수로 전환하고, 기회비용을 탄소경제가치 기준으로 수치화한다.</p>
+        <div class="topic-tags">
+          <span class="tag">우천</span>
+          <span class="tag">기회비용</span>
+          <span class="tag">손실 추정</span>
+          <span class="tag">월별 분석</span>
+        </div>
+      </div>
+      <div class="topic-card">
+        <div class="topic-idx">TOPIC 03</div>
+        <div class="topic-title">날씨 조건 대비 탄소 경제효율이<br>높은 투자 우선 자치구 도출</div>
+        <p style="font-size:12px;color:var(--muted);line-height:1.7">자치구별 기상 조건과 이용 패턴을 결합해 건당 탄소 경제효율을 산정하고, 예산 대비 ROI가 높은 인프라 투자 우선순위를 제언한다.</p>
+        <div class="topic-tags">
+          <span class="tag">자치구</span>
+          <span class="tag">건당효율</span>
+          <span class="tag">투자우선순위</span>
+          <span class="tag">정책제언</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SQL -->
+  <div class="section sr">
+    <div class="sec-header">
+      <span class="sec-num">02</span>
+      <span class="sec-title">SQL 분석 쿼리</span>
+      <div class="sec-line"></div>
+    </div>
+    <div class="sql-grid">
+
+      <!-- SQL 1 -->
+      <div class="sql-card">
+        <div class="sql-header">
+          <div class="sql-dots"><span></span><span></span><span></span></div>
+          <div class="sql-label"><strong>SQL 1</strong> &nbsp;—&nbsp; 기상 리스크 × 탄소경제가치</div>
+        </div>
+        <pre><span class="cm">-- 분석기간(25.07~12) 전월 강수량 20mm 이상 → 강수구간 모두 '강우'로 분류됨</span>
+<span class="kw">SELECT</span>
+    <span class="kw">CASE</span>
+        <span class="kw">WHEN</span> <span class="col">t.평균기온</span> <span class="kw">&lt;</span> <span class="num">5</span>  <span class="kw">THEN</span> <span class="str">'한파(5도 미만)'</span>   <span class="cm">-- 12월: 1.2°C</span>
+        <span class="kw">WHEN</span> <span class="col">t.평균기온</span> <span class="kw">&lt;</span> <span class="num">15</span> <span class="kw">THEN</span> <span class="str">'쌀쌀(5~15도)'</span>     <span class="cm">-- 11월: 9.0°C</span>
+        <span class="kw">WHEN</span> <span class="col">t.평균기온</span> <span class="kw">&lt;</span> <span class="num">25</span> <span class="kw">THEN</span> <span class="str">'적정(15~25도)'</span>     <span class="cm">-- 9월: 23.5°C, 10월: 16.5°C</span>
+        <span class="kw">WHEN</span> <span class="col">t.평균기온</span> <span class="kw">&lt;</span> <span class="num">33</span> <span class="kw">THEN</span> <span class="str">'더움(25~33도)'</span>     <span class="cm">-- 7월: 28.8°C, 8월: 28.2°C</span>
+        <span class="kw">ELSE</span> <span class="str">'폭염(33도+)'</span>
+    <span class="kw">END AS</span> <span class="col">기온구간</span>,
+    <span class="kw">CASE</span>
+        <span class="kw">WHEN</span> <span class="col">r.강수량</span> <span class="kw">=</span> <span class="num">0</span>   <span class="kw">THEN</span> <span class="str">'맑음'</span>
+        <span class="kw">WHEN</span> <span class="col">r.강수량</span> <span class="kw">&lt;=</span> <span class="num">10</span> <span class="kw">THEN</span> <span class="str">'소우'</span>
+        <span class="kw">ELSE</span> <span class="str">'강우'</span>                              <span class="cm">-- 실제 데이터 전 구간 해당</span>
+    <span class="kw">END AS</span> <span class="col">강수구간</span>,
+    <span class="fn">SUM</span>(<span class="col">i.이용건수</span>) <span class="kw">AS</span> <span class="col">이용건수</span>,
+    <span class="fn">ROUND</span>(<span class="fn">SUM</span>(<span class="col">i.탄소량</span>), <span class="num">2</span>) <span class="kw">AS</span> <span class="col">총탄소절감_kg</span>,
+    <span class="fn">ROUND</span>(<span class="fn">SUM</span>(<span class="col">i.탄소량</span>) / <span class="num">1000</span> * <span class="num">9000</span>, <span class="num">0</span>) <span class="kw">AS</span> <span class="col">탄소경제가치_원</span>
+<span class="kw">FROM</span> <span class="col">이용정보</span> <span class="col">i</span>
+<span class="kw">JOIN</span> <span class="col">기온</span> <span class="col">t</span> <span class="kw">ON</span> <span class="fn">SUBSTR</span>(<span class="col">i.대여일자</span>, <span class="num">1</span>, <span class="num">6</span>) <span class="kw">=</span> <span class="col">t.년월</span>
+<span class="kw">JOIN</span> <span class="col">강수량</span> <span class="col">r</span> <span class="kw">ON</span> <span class="fn">SUBSTR</span>(<span class="col">i.대여일자</span>, <span class="num">1</span>, <span class="num">6</span>) <span class="kw">=</span> <span class="col">r.년월</span>
+<span class="kw">GROUP BY</span> <span class="col">기온구간</span>, <span class="col">강수구간</span>
+<span class="kw">ORDER BY</span> <span class="col">탄소경제가치_원</span> <span class="kw">DESC</span>;</pre>
+        <div style="padding:0 22px 16px;display:flex;gap:10px;flex-wrap:wrap">
+          <div style="font-size:11px;background:rgba(99,202,183,0.08);border:1px solid rgba(99,202,183,0.2);border-radius:8px;padding:6px 12px;color:var(--accent)">적정(15~25도)·강우 → 탄소경제가치 <strong>3,689만원</strong> 1위</div>
+          <div style="font-size:11px;background:rgba(245,158,66,0.08);border:1px solid rgba(245,158,66,0.2);border-radius:8px;padding:6px 12px;color:var(--accent2)">더움(25~33도)·강우 → <strong>3,338만원</strong> 2위</div>
+          <div style="font-size:11px;background:rgba(224,90,122,0.08);border:1px solid rgba(224,90,122,0.2);border-radius:8px;padding:6px 12px;color:var(--accent3)">한파(5도 미만)·강우 → <strong>755만원</strong> 최저</div>
+        </div>
+      </div>
+
+      <!-- SQL 2 -->
+      <div class="sql-card">
+        <div class="sql-header">
+          <div class="sql-dots"><span></span><span></span><span></span></div>
+          <div class="sql-label"><strong>SQL 2</strong> &nbsp;—&nbsp; 우천 기회비용 추정</div>
+        </div>
+        <pre><span class="cm">-- 추정손실건수 음수 = 평균 대비 초과 이용 발생 월 (7~9월)</span>
+<span class="kw">SELECT</span>
+    <span class="col">r.년월</span>,
+    <span class="fn">ROUND</span>(<span class="col">r.강수량</span>, <span class="num">1</span>) <span class="kw">AS</span> <span class="col">월강수량_mm</span>,
+    <span class="fn">SUM</span>(<span class="col">i.이용건수</span>) <span class="kw">AS</span> <span class="col">실제이용건수</span>,
+    <span class="fn">ROUND</span>(<span class="fn">AVG</span>(<span class="fn">SUM</span>(<span class="col">i.이용건수</span>)) <span class="kw">OVER</span>(), <span class="num">0</span>) <span class="kw">AS</span> <span class="col">월평균이용건수</span>,  <span class="cm">-- 전체 평균: 약 327만 건</span>
+    <span class="fn">ROUND</span>(
+        <span class="fn">AVG</span>(<span class="fn">SUM</span>(<span class="col">i.이용건수</span>)) <span class="kw">OVER</span>() <span class="kw">-</span> <span class="fn">SUM</span>(<span class="col">i.이용건수</span>), <span class="num">0</span>
+    ) <span class="kw">AS</span> <span class="col">추정손실건수</span>,                              <span class="cm">-- 음수면 초과 이용</span>
+    <span class="fn">ROUND</span>(
+        (<span class="fn">AVG</span>(<span class="fn">SUM</span>(<span class="col">i.이용건수</span>)) <span class="kw">OVER</span>() <span class="kw">-</span> <span class="fn">SUM</span>(<span class="col">i.이용건수</span>))
+        * <span class="fn">AVG</span>(<span class="col">i.탄소량</span>) / <span class="num">1000</span> * <span class="num">9000</span>, <span class="num">0</span>
+    ) <span class="kw">AS</span> <span class="col">기회비용_원</span>                               <span class="cm">-- 음수면 기회이득</span>
+<span class="kw">FROM</span> <span class="col">이용정보</span> <span class="col">i</span>
+<span class="kw">JOIN</span> <span class="col">강수량</span> <span class="col">r</span> <span class="kw">ON</span> <span class="fn">SUBSTR</span>(<span class="col">i.대여일자</span>, <span class="num">1</span>, <span class="num">6</span>) <span class="kw">=</span> <span class="col">r.년월</span>
+<span class="kw">GROUP BY</span> <span class="col">r.년월</span>, <span class="col">r.강수량</span>
+<span class="kw">ORDER BY</span> <span class="col">기회비용_원</span> <span class="kw">DESC</span>;</pre>
+        <div style="padding:0 22px 16px;display:flex;gap:10px;flex-wrap:wrap">
+          <div style="font-size:11px;background:rgba(99,202,183,0.08);border:1px solid rgba(99,202,183,0.2);border-radius:8px;padding:6px 12px;color:var(--accent)">12월(41mm) → 기회비용 <strong>+1억 601만원</strong> 최대</div>
+          <div style="font-size:11px;background:rgba(124,158,245,0.08);border:1px solid rgba(124,158,245,0.2);border-radius:8px;padding:6px 12px;color:var(--accent4)">11월(21mm) → <strong>+1,128만원</strong></div>
+          <div style="font-size:11px;background:rgba(224,90,122,0.08);border:1px solid rgba(224,90,122,0.2);border-radius:8px;padding:6px 12px;color:var(--accent3)">9월(371mm) → 초과이용으로 <strong>-1억 3,221만원</strong>(기회이득)</div>
+        </div>
+      </div>
+
+      <!-- SQL 3 -->
+      <div class="sql-card">
+        <div class="sql-header">
+          <div class="sql-dots"><span></span><span></span><span></span></div>
+          <div class="sql-label"><strong>SQL 3</strong> &nbsp;—&nbsp; 자치구별 탄소 경제효율 · 투자 우선순위</div>
+        </div>
+        <pre><span class="kw">SELECT</span>
+    <span class="col">s.자치구</span>,
+    <span class="fn">COUNT</span>(<span class="col">i.id</span>) <span class="kw">AS</span> <span class="col">총이용건수</span>,
+    <span class="fn">ROUND</span>(<span class="fn">AVG</span>(<span class="col">t.평균기온</span>), <span class="num">1</span>) <span class="kw">AS</span> <span class="col">평균기온</span>,
+    <span class="fn">ROUND</span>(<span class="fn">AVG</span>(<span class="col">r.강수량</span>), <span class="num">1</span>) <span class="kw">AS</span> <span class="col">평균강수량</span>,
+    <span class="fn">ROUND</span>(<span class="fn">SUM</span>(<span class="col">i.탄소량</span>), <span class="num">2</span>) <span class="kw">AS</span> <span class="col">총탄소절감_kg</span>,
+    <span class="fn">ROUND</span>(<span class="fn">SUM</span>(<span class="col">i.탄소량</span>) / <span class="num">1000</span> * <span class="num">9000</span>, <span class="num">0</span>) <span class="kw">AS</span> <span class="col">총탄소경제가치_원</span>,
+    <span class="fn">ROUND</span>(<span class="fn">SUM</span>(<span class="col">i.탄소량</span>) / <span class="fn">SUM</span>(<span class="col">i.이용건수</span>) * <span class="num">9</span>, <span class="num">2</span>) <span class="kw">AS</span> <span class="col">건당경제효율_원</span>
+<span class="kw">FROM</span> <span class="col">이용정보</span> <span class="col">i</span>
+<span class="kw">JOIN</span> <span class="col">대여소</span> <span class="col">s</span> <span class="kw">ON</span> <span class="col">i.대여소번호</span> <span class="kw">=</span> <span class="col">s.대여소번호</span>
+<span class="kw">JOIN</span> <span class="col">기온</span> <span class="col">t</span> <span class="kw">ON</span> <span class="fn">SUBSTR</span>(<span class="col">i.대여일자</span>, <span class="num">1</span>, <span class="num">6</span>) <span class="kw">=</span> <span class="col">t.년월</span>
+<span class="kw">JOIN</span> <span class="col">강수량</span> <span class="col">r</span> <span class="kw">ON</span> <span class="fn">SUBSTR</span>(<span class="col">i.대여일자</span>, <span class="num">1</span>, <span class="num">6</span>) <span class="kw">=</span> <span class="col">r.년월</span>
+<span class="kw">GROUP BY</span> <span class="col">s.자치구</span>
+<span class="kw">ORDER BY</span> <span class="col">건당경제효율_원</span> <span class="kw">DESC</span>;</pre>
+        <div style="padding:0 22px 16px;display:flex;gap:10px;flex-wrap:wrap">
+          <div style="font-size:11px;background:rgba(99,202,183,0.08);border:1px solid rgba(99,202,183,0.2);border-radius:8px;padding:6px 12px;color:var(--accent)">🥇 용산구 <strong>6.41원/건</strong> — 효율 1위</div>
+          <div style="font-size:11px;background:rgba(124,158,245,0.08);border:1px solid rgba(124,158,245,0.2);border-radius:8px;padding:6px 12px;color:var(--accent4)">🥈 강남구 <strong>6.15원/건</strong> · 🥉 성동구 <strong>6.00원/건</strong></div>
+          <div style="font-size:11px;background:rgba(224,90,122,0.08);border:1px solid rgba(224,90,122,0.2);border-radius:8px;padding:6px 12px;color:var(--accent3)">강서구 <strong>3.39원/건</strong> — 이용량 최대(247만건)이나 효율 최저</div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- 인사이트 -->
+  <div class="section sr">
+    <div class="sec-header">
+      <span class="sec-num">03</span>
+      <span class="sec-title">분석 인사이트</span>
+      <div class="sec-line"></div>
+    </div>
+    <div class="insight-grid">
+
+      <div class="insight-card">
+        <div class="insight-icon">🌡️</div>
+        <div class="insight-num">INSIGHT 01</div>
+        <div class="insight-title">기온이 탄소경제가치를 결정한다</div>
+        <div class="insight-body">
+          분석기간(25.07~12) 전월 강수량이 20mm 이상으로 <em>강수구간은 모두 '강우'</em>에 해당하며, 기온구간이 탄소경제가치의 핵심 변수로 드러났다. <em>적정 기온(15~25도)</em>에서 탄소경제가치 <em>약 3,689만원</em>으로 최대, <em>한파(5도 미만)</em>에서는 <em>755만원</em>으로 5분의 1 수준에 그쳐, 기온 하락이 곧 탄소중립 손실임을 정량화할 수 있다.
+        </div>
+        <div class="insight-pill">→ 기온 리스크 = 탄소경제가치 손실</div>
+      </div>
+
+      <div class="insight-card">
+        <div class="insight-icon">🌧️</div>
+        <div class="insight-num">INSIGHT 02</div>
+        <div class="insight-title">강수량 역설 — 폭우 월이 오히려 이용 급증</div>
+        <div class="insight-body">
+          강수량이 많은 달의 기회비용이 크다는 가설과 달리, <em>강수량 최대인 9월(371mm)</em>에 오히려 이용건수가 <em>월평균 대비 71만 건 초과</em>해 기회이득 <em>약 1억 3,221만원</em>이 발생했다. 반면 <em>12월(41mm 소강수)</em>에 기회비용이 <em>1억 601만원</em>으로 최대였다. 기회비용의 실질 원인은 강수량보다 <em>기온(겨울철 이용 기피)</em>임을 시사한다.
+        </div>
+        <div class="insight-pill">→ 기온이 핵심 변수, 우천 가설 재검토 필요</div>
+      </div>
+
+      <div class="insight-card">
+        <div class="insight-icon">📍</div>
+        <div class="insight-num">INSIGHT 03</div>
+        <div class="insight-title">용산·강남·성동 — 탄소효율 상위, 투자 우선순위 1순위</div>
+        <div class="insight-body">
+          동일 기상 조건에서도 자치구별 건당 탄소효율 격차는 <em>최대 1.89배</em>(용산 6.41원 vs 강서 3.39원). 효율 상위인 <em>용산·강남·성동·동작·서대문구</em>는 이동거리가 길고 출퇴근 목적 이용 비중이 높아 건당 탄소절감량이 크다. 이 5개 자치구에 대여소·거치대를 집중 투자하면 <em>예산 대비 탄소절감 ROI가 최고</em>라는 정책 제언으로 연결된다.
+        </div>
+        <div class="insight-pill">→ 효율 상위 5개 자치구 우선 투자 제언</div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ── 시각화 ── -->
+
+  <!-- KPI 요약 -->
+  <div class="section sr chart-section">
+    <div class="sec-header">
+      <span class="sec-num">04</span>
+      <span class="sec-title">데이터 시각화</span>
+      <div class="sec-line"></div>
+    </div>
+    <div class="kpi-row">
+      <div class="kpi">
+        <div class="kpi-label">총 이용건수 (6개월)</div>
+        <div class="kpi-val c1">1,965만</div>
+      </div>
+      <div class="kpi">
+        <div class="kpi-label">총 탄소절감량</div>
+        <div class="kpi-val c2">10,194t</div>
+      </div>
+      <div class="kpi">
+        <div class="kpi-label">총 탄소경제가치</div>
+        <div class="kpi-val c4">91,748만원</div>
+      </div>
+      <div class="kpi">
+        <div class="kpi-label">최고효율 자치구</div>
+        <div class="kpi-val c1">용산구</div>
+      </div>
+      <div class="kpi">
+        <div class="kpi-label">최대 기회비용 월</div>
+        <div class="kpi-val c3">2025.12</div>
+      </div>
+    </div>
+
+    <!-- 차트 Row 1: 기온구간 도넛 + 월별 라인 -->
+    <div class="chart-grid-2" style="margin-bottom:20px">
+      <div class="chart-card">
+        <div class="chart-title">📊 기온구간별 탄소경제가치 분포</div>
+        <div class="chart-sub">기온구간 × 탄소경제가치(원) — 적정 기온이 전체의 40% 차지</div>
+        <div class="chart-wrap" style="height:280px">
+          <canvas id="chartDonut"></canvas>
+        </div>
+      </div>
+      <div class="chart-card">
+        <div class="chart-title">📈 월별 이용건수 vs 강수량 추이</div>
+        <div class="chart-sub">2025.07~12 — 강수량 역설: 9월 폭우에도 이용 최대</div>
+        <div class="chart-wrap" style="height:280px">
+          <canvas id="chartLine"></canvas>
+        </div>
+      </div>
+    </div>
+
+    <!-- 차트 Row 2: 기회비용 바 -->
+    <div class="chart-grid-1" style="margin-bottom:20px">
+      <div class="chart-card">
+        <div class="chart-title">💸 월별 기회비용 / 기회이득 (탄소경제가치 기준)</div>
+        <div class="chart-sub">양수 = 평균 대비 이용 감소로 인한 손실(원) / 음수 = 초과 이용에 따른 기회이득(원)</div>
+        <div class="chart-wrap" style="height:220px">
+          <canvas id="chartBar"></canvas>
+        </div>
+      </div>
+    </div>
+
+    <!-- 차트 Row 3: 자치구 수평 바 -->
+    <div class="chart-grid-1">
+      <div class="chart-card">
+        <div class="chart-title">🗺️ 자치구별 건당 탄소 경제효율 (투자 우선순위)</div>
+        <div class="chart-sub">건당 탄소경제효율(원/건) 기준 정렬 — 상위 5개 자치구(초록)가 투자 1순위</div>
+        <div class="chart-wrap" style="height:520px">
+          <canvas id="chartHBar"></canvas>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <footer>
+    <div>서울시 따릉이 공공데이터 분석 설계서 &nbsp;·&nbsp; <span>기상 × 탄소 × 자치구</span></div>
+    <div>SQL 기반 분석 &nbsp;·&nbsp; 3 Topics · 3 Queries · 3 Insights</div>
+  </footer>
+
+</div>
+
+<script>
+  // ── 공통 설정 ──
+  Chart.defaults.color = '#7a9090';
+  Chart.defaults.font.family = "'Noto Sans KR', sans-serif";
+  Chart.defaults.font.size = 11;
+
+  const ACCENT  = '#63cab7';
+  const ACCENT2 = '#f59e42';
+  const ACCENT3 = '#e05a7a';
+  const ACCENT4 = '#7c9ef5';
+  const MUTED   = 'rgba(255,255,255,0.06)';
+
+  // ── Chart 1: 도넛 — 기온구간별 탄소경제가치 ──
+  new Chart(document.getElementById('chartDonut'), {
+    type: 'doughnut',
+    data: {
+      labels: ['적정(15~25도)', '더움(25~33도)', '쌀쌀(5~15도)', '한파(5도 미만)'],
+      datasets: [{
+        data: [36891473, 33377036, 13932928, 7547156],
+        backgroundColor: [ACCENT, ACCENT2, ACCENT4, ACCENT3],
+        borderColor: '#111827',
+        borderWidth: 3,
+        hoverOffset: 10
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      cutout: '62%',
+      plugins: {
+        legend: {
+          position: 'right',
+          labels: { padding: 14, boxWidth: 12, color: '#c9d8d8', font: { size: 11 } }
+        },
+        tooltip: {
+          callbacks: {
+            label: ctx => {
+              const v = ctx.parsed;
+              const total = ctx.dataset.data.reduce((a,b)=>a+b,0);
+              const pct = (v/total*100).toFixed(1);
+              return ` ${(v/10000).toFixed(0)}만원 (${pct}%)`;
+            }
+          }
+        }
+      }
+    }
+  });
+
+  // ── Chart 2: 라인 — 월별 이용건수 & 강수량 ──
+  const lineCtx = document.getElementById('chartLine');
+  new Chart(lineCtx, {
+    type: 'line',
+    data: {
+      labels: ['7월', '8월', '9월', '10월', '11월', '12월'],
+      datasets: [
+        {
+          label: '실제 이용건수',
+          data: [3536203, 3559225, 3992326, 3407811, 3186985, 1965174],
+          borderColor: ACCENT,
+          backgroundColor: 'rgba(99,202,183,0.12)',
+          fill: true,
+          tension: 0.4,
+          pointBackgroundColor: ACCENT,
+          pointRadius: 5, pointHoverRadius: 7,
+          yAxisID: 'y'
+        },
+        {
+          label: '월평균 이용건수',
+          data: [3274621,3274621,3274621,3274621,3274621,3274621],
+          borderColor: 'rgba(255,255,255,0.2)',
+          borderDash: [6,4],
+          pointRadius: 0,
+          tension: 0,
+          yAxisID: 'y'
+        },
+        {
+          label: '강수량(mm)',
+          data: [293.9, 290.3, 370.7, 186.3, 20.8, 41.2],
+          borderColor: ACCENT4,
+          backgroundColor: 'rgba(124,158,245,0.08)',
+          fill: false,
+          tension: 0.4,
+          pointBackgroundColor: ACCENT4,
+          pointRadius: 5, pointHoverRadius: 7,
+          borderDash: [4,3],
+          yAxisID: 'y2'
+        }
+      ]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: { labels: { color: '#c9d8d8', boxWidth: 12, padding: 12 } },
+        tooltip: {
+          callbacks: {
+            label: ctx => {
+              if (ctx.datasetIndex === 2) return ` 강수량: ${ctx.parsed.y}mm`;
+              if (ctx.datasetIndex === 1) return ` 월평균: ${ctx.parsed.y.toLocaleString()}건`;
+              return ` 이용건수: ${ctx.parsed.y.toLocaleString()}건`;
+            }
+          }
+        }
+      },
+      scales: {
+        x: { grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: '#7a9090' } },
+        y: {
+          position: 'left',
+          grid: { color: 'rgba(255,255,255,0.05)' },
+          ticks: { color: '#7a9090', callback: v => (v/10000).toFixed(0)+'만' }
+        },
+        y2: {
+          position: 'right',
+          grid: { drawOnChartArea: false },
+          ticks: { color: ACCENT4, callback: v => v+'mm' }
+        }
+      }
+    }
+  });
+
+  // ── Chart 3: 바 — 월별 기회비용 ──
+  const barData  = [-40811133, -46009415, -132207316, -20576341, 11283813, 106041008];
+  const barColors = barData.map(v => v >= 0
+    ? 'rgba(224,90,122,0.75)' : 'rgba(99,202,183,0.65)');
+  const barBorder = barData.map(v => v >= 0 ? ACCENT3 : ACCENT);
+
+  new Chart(document.getElementById('chartBar'), {
+    type: 'bar',
+    data: {
+      labels: ['7월', '8월', '9월', '10월', '11월', '12월'],
+      datasets: [{
+        label: '기회비용(+손실 / -이득)',
+        data: barData,
+        backgroundColor: barColors,
+        borderColor: barBorder,
+        borderWidth: 1.5,
+        borderRadius: 6
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          callbacks: {
+            label: ctx => {
+              const v = ctx.parsed.y;
+              const sign = v >= 0 ? '손실' : '기회이득';
+              return ` ${sign}: ${Math.abs(v/10000).toFixed(0)}만원`;
+            }
+          }
+        }
+      },
+      scales: {
+        x: { grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: '#7a9090' } },
+        y: {
+          grid: { color: 'rgba(255,255,255,0.05)' },
+          ticks: {
+            color: '#7a9090',
+            callback: v => (v/100000000).toFixed(1)+'억'
+          }
+        }
+      }
+    }
+  });
+
+  // ── Chart 4: 수평 바 — 자치구별 건당 효율 ──
+  const gu = ['강서구','양천구','강동구','종로구','노원구','중랑구','송파구','광진구','영등포구','중구','구로구','동대문구','은평구','금천구','강북구','도봉구','성북구','관악구','서초구','마포구','서대문구','동작구','성동구','강남구','용산구'];
+  const eff = [3.39,3.92,4.02,4.08,4.37,4.46,4.53,4.54,4.54,4.65,4.71,4.74,4.83,4.88,4.92,5.15,5.27,5.32,5.68,5.87,5.92,5.93,6.0,6.15,6.41];
+  const hbarColors = eff.map(v => v >= 5.68
+    ? 'rgba(99,202,183,0.80)' : 'rgba(124,158,245,0.45)');
+  const hbarBorder = eff.map(v => v >= 5.68 ? ACCENT : ACCENT4);
+
+  new Chart(document.getElementById('chartHBar'), {
+    type: 'bar',
+    data: {
+      labels: gu,
+      datasets: [{
+        label: '건당 탄소경제효율(원/건)',
+        data: eff,
+        backgroundColor: hbarColors,
+        borderColor: hbarBorder,
+        borderWidth: 1.5,
+        borderRadius: 5
+      }]
+    },
+    options: {
+      indexAxis: 'y',
+      responsive: true, maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          callbacks: {
+            label: ctx => ` ${ctx.parsed.x}원/건`
+          }
+        }
+      },
+      scales: {
+        x: {
+          min: 0, max: 7,
+          grid: { color: 'rgba(255,255,255,0.05)' },
+          ticks: { color: '#7a9090', callback: v => v+'원' }
+        },
+        y: {
+          grid: { display: false },
+          ticks: { color: '#c9d8d8', font: { size: 11 } }
+        }
+      }
+    }
+  });
+
+  // ── Scroll reveal ──
+  const observer = new IntersectionObserver(entries => {
+    entries.forEach(e => { if (e.isIntersecting) e.target.classList.add('visible'); });
+  }, { threshold: 0.08 });
+  document.querySelectorAll('.sr').forEach(el => observer.observe(el));
+</script>
+</body>
+</html>
